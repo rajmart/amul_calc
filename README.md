@@ -223,7 +223,7 @@ Please keep the following in mind:
 
 ## License
 
-MIT License. See `LICENSE` for details.
+GPL 3.0. See `LICENSE` for details.
 
 ---
 
