@@ -2,7 +2,7 @@
 //  Amul Calc – sw.js  v2 (cache busted)
 // ============================================================
 
-const CACHE_NAME = 'amulcalc_v2';   // ← bumped from v1
+const CACHE_NAME = 'amulcalc_v3';   // ← bumped from v1
 
 const CACHE_ASSETS = [
   './',
