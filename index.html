@@ -1938,7 +1938,26 @@ setTimeout(function(){
             <span id="selectionCount" class="selection-count-label">Select rows to export</span>
             <button id="selectionExportBtn" class="btn btn-primary btn-sm" onclick="exportSelectedRows()" disabled>🖨️ Export PDF</button>
           </div>
-          <div id="ledgerCustomerTabs" class="supplier-tabs-row"></div>
+          <!-- Customer filter: search + dropdown (like order page) -->
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Filter by Customer</label>
+            <div class="customer-search-wrap" id="ledgerCustomerWrap">
+              <div style="display:flex;gap:6px;align-items:stretch;">
+                <input type="text" id="ledgerCustomerSearch" class="customer-search-input"
+                  placeholder="Search customer… or tap ▾ to list all"
+                  oninput="filterLedgerCustomers()"
+                  onfocus="filterLedgerCustomers()"
+                  autocomplete="off" style="flex:1;">
+                <button class="btn btn-secondary" onclick="showAllLedgerCustomersDropdown()"
+                  style="flex-shrink:0;padding:0 12px;font-size:16px;border-radius:8px;">▾</button>
+              </div>
+              <div id="ledgerCustomerDropdown" class="customer-dropdown" style="display:none;"></div>
+              <div id="ledgerSelectedCustomerChip" style="display:none;" class="selected-customer-chip">
+                <span id="ledgerSelectedCustomerName"></span>
+                <button onclick="clearLedgerCustomer()" class="chip-clear" title="Show all customers">✕ All</button>
+              </div>
+            </div>
+          </div>
           <div class="ledger-filter">
             <button class="filter-btn active" onclick="setLedgerFilter('all',this)">All</button>
             <button class="filter-btn" onclick="setLedgerFilter('this-week',this)">This Week</button>
@@ -2556,6 +2575,16 @@ function renderDashAmulSnapshot() {
 function openCustomerLedger(customerId) {
   currentLedgerCustomer = customerId;
   showPage('ledger');
+  // Sync the search chip UI after the page renders
+  setTimeout(() => {
+    const c = getCustomer(customerId);
+    if (c) {
+      document.getElementById('ledgerSelectedCustomerName').textContent = c.name;
+      document.getElementById('ledgerSelectedCustomerChip').style.display = 'flex';
+      document.getElementById('ledgerCustomerSearch').value = '';
+      document.getElementById('ledgerCustomerDropdown').style.display = 'none';
+    }
+  }, 0);
 }
 
 // ==========================================================
@@ -3196,10 +3225,7 @@ function setLedgerFilter(filter, btn) {
   renderLedger();
 }
 
-function setLedgerCustomer(customerId) {
-  currentLedgerCustomer = customerId;
-  renderLedger();
-}
+
 
 function getLedgerDateRange() {
   const today = todayStr();
@@ -3247,17 +3273,72 @@ function buildLedgerRows(customerId) {
   return rows;
 }
 
-function renderLedger() {
-  // Build customer tabs
-  const tabContainer = document.getElementById('ledgerCustomerTabs');
-  if (tabContainer) {
-    tabContainer.innerHTML = `
-      <button class="supplier-tab ${currentLedgerCustomer==='all'?'active':''}" onclick="setLedgerCustomer('all')">All</button>
-      ${DB.customers.map(c => `
-        <button class="supplier-tab ${currentLedgerCustomer===c.id?'active':''}" onclick="setLedgerCustomer('${c.id}')">
-          ${c.name}
-        </button>`).join('')}`;
+// ==========================================================
+//  LEDGER CUSTOMER SEARCH / DROPDOWN
+// ==========================================================
+function filterLedgerCustomers() {
+  const val = document.getElementById('ledgerCustomerSearch').value.trim().toLowerCase();
+  const dropdown = document.getElementById('ledgerCustomerDropdown');
+  const matches = val
+    ? DB.customers.filter(c => c.name.toLowerCase().includes(val) || (c.phone||'').includes(val))
+    : DB.customers;
+  if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = [
+    `<div class="customer-dropdown-item" onclick="selectLedgerCustomer('all')">
+       <span style="font-weight:600;">📋 All Customers</span>
+     </div>`,
+    ...matches.map(c =>
+      `<div class="customer-dropdown-item" onclick="selectLedgerCustomer('${c.id}')">
+         <span style="font-weight:600;">${c.name}</span>
+         ${c.phone ? `<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">${c.phone}</span>` : ''}
+       </div>`
+    )
+  ].join('');
+  dropdown.style.display = 'block';
+}
+
+function showAllLedgerCustomersDropdown() {
+  const dd = document.getElementById('ledgerCustomerDropdown');
+  if (dd.style.display === 'block') { dd.style.display = 'none'; return; }
+  document.getElementById('ledgerCustomerSearch').value = '';
+  filterLedgerCustomers();
+  document.getElementById('ledgerCustomerSearch').focus();
+}
+
+function selectLedgerCustomer(customerId) {
+  document.getElementById('ledgerCustomerSearch').value = '';
+  document.getElementById('ledgerCustomerDropdown').style.display = 'none';
+  if (customerId === 'all') {
+    currentLedgerCustomer = 'all';
+    document.getElementById('ledgerSelectedCustomerChip').style.display = 'none';
+  } else {
+    const c = getCustomer(customerId);
+    if (!c) return;
+    currentLedgerCustomer = customerId;
+    document.getElementById('ledgerSelectedCustomerName').textContent = c.name;
+    document.getElementById('ledgerSelectedCustomerChip').style.display = 'flex';
   }
+  renderLedger();
+}
+
+function setLedgerCustomer(customerId) { selectLedgerCustomer(customerId); }
+
+function clearLedgerCustomer() {
+  currentLedgerCustomer = 'all';
+  document.getElementById('ledgerCustomerSearch').value = '';
+  document.getElementById('ledgerCustomerDropdown').style.display = 'none';
+  document.getElementById('ledgerSelectedCustomerChip').style.display = 'none';
+  renderLedger();
+}
+
+// Close ledger customer dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('ledgerCustomerWrap');
+  const dd   = document.getElementById('ledgerCustomerDropdown');
+  if (dd && wrap && !wrap.contains(e.target)) dd.style.display = 'none';
+});
+
+function renderLedger() {
 
   const { from, to } = getLedgerDateRange();
   const allRows  = buildLedgerRows(currentLedgerCustomer);
